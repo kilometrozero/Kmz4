@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KMZ - Tienda</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="logo" href="index.html">KMZ</a>
+      <div class="links">
+        <a href="tienda.html">Tienda</a>
+        <a href="sobre.html">Sobre</a>
+        <a href="admin.html">Admin</a>
+        <button id="cartBtn2" class="cart-btn">Carrito (<span id="cartCount2">0</span>)</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <h1>Catálogo</h1>
+    <div id="productsGridFull" class="products-grid"></div>
+  </main>
+
+  <!-- Cart modal -->
+  <div id="cartModal2" class="modal hidden">
+    <div class="modal-content">
+      <button class="close-modal" id="closeCart2">&times;</button>
+      <h3>Tu carrito</h3>
+      <div id="cartItems2"></div>
+      <div class="cart-footer">
+        <strong>Total: <span id="cartTotal2">$0</span></strong>
+        <button id="checkoutBtn2" class="btn">Pagar (WhatsApp)</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/script.js"></script>
+</body>
+</html>

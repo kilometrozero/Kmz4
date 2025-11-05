@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "tienda.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "sobre.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "admin.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/tienda",
+      "dest": "/tienda.html"
+    },
+    {
+      "src": "/sobre",
+      "dest": "/sobre.html"
+    },
+    {
+      "src": "/admin",
+      "dest": "/admin.html"
+    }
+  ]
+}
