@@ -773,6 +773,624 @@
       <div class="modal-body">
         <form id="checkoutForm" onsubmit="submitOrder(event)">
           <div class="form-group">
+            <label>Categoría *</label>
+            <select id="productCategory" required>
+              <option>Remeras</option>
+              <option>Buzos</option>
+              <option>Pantalones</option>
+              <option>Accesorios</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Descripción</label>
+            <textarea id="productDescription" rows="4"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Imagen del producto</label>
+            <input type="file" id="productImage" accept="image/*" onchange="previewProductImage()">
+            <img id="imagePreview" style="display: none; margin-top: 1rem; max-width: 300px; border-radius: 10px;">
+          </div>
+          <button type="submit" class="btn-primary" style="width: 100%;">Agregar producto</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification -->
+  <div id="notification" class="notification hidden"></div>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // Data storage
+    let products = [
+      {
+        id: 1,
+        name: 'Remera Oversize Negra',
+        price: 25000,
+        category: 'Remeras',
+        stock: 15,
+        views: 234,
+        sales: 45,
+        image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23000" width="400" height="400"/%3E%3Ctext x="200" y="200" font-family="Arial" font-size="80" fill="%23fff" text-anchor="middle"%3EKMZ%3C/text%3E%3C/svg%3E',
+        description: 'Remera oversize de algodón premium con logo KMZ bordado. Corte amplio y cómodo para máximo estilo urbano.',
+        rating: 4.8
+      },
+      {
+        id: 2,
+        name: 'Buzo KMZ Blanco',
+        price: 45000,
+        category: 'Buzos',
+        stock: 8,
+        views: 189,
+        sales: 32,
+        image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23fff" width="400" height="400"/%3E%3Ctext x="200" y="200" font-family="Arial" font-size="80" fill="%23000" text-anchor="middle"%3EKMZ%3C/text%3E%3C/svg%3E',
+        description: 'Buzo con capucha de alta calidad. Material premium con estampado exclusivo KMZ en pecho y espalda.',
+        rating: 4.9
+      }
+    ];
+
+    let cart = [];
+    let isAdminLoggedIn = false;
+
+    // Load from localStorage
+    function loadData() {
+      const savedProducts = localStorage.getItem('kmz_products');
+      if (savedProducts) {
+        products = JSON.parse(savedProducts);
+      }
+      const savedCart = localStorage.getItem('kmz_cart');
+      if (savedCart) {
+        cart = JSON.parse(savedCart);
+        updateCartBadge();
+      }
+    }
+
+    // Save to localStorage
+    function saveData() {
+      localStorage.setItem('kmz_products', JSON.stringify(products));
+      localStorage.setItem('kmz_cart', JSON.stringify(cart));
+    }
+
+    // Notifications
+    function showNotification(message, type = 'success') {
+      const notification = document.getElementById('notification');
+      notification.textContent = message;
+      notification.className = `notification ${type}`;
+      playSound(type);
+      
+      setTimeout(() => {
+        notification.classList.add('hidden');
+      }, 3000);
+    }
+
+    // Sound effects
+    function playSound(type) {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      if (type === 'success') {
+        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1);
+      } else if (type === 'error') {
+        oscillator.frequency.setValueAtTime(300, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(200, audioContext.currentTime + 0.1);
+      } else {
+        oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+      }
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.2);
+    }
+
+    // Render products
+    function renderProducts() {
+      const container = document.getElementById('productsContainer');
+      container.innerHTML = products.map(product => `
+        <div class="product-card" onclick="showProductDetail(${product.id})">
+          <div style="position: relative; overflow: hidden;">
+            <img src="${product.image}" alt="${product.name}" class="product-image">
+            ${product.stock < 5 ? `<div style="position: absolute; top: 1rem; left: 1rem; background: #ef4444; color: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600;">¡Últimas ${product.stock} unidades!</div>` : ''}
+          </div>
+          <div class="product-info">
+            <span class="product-badge">${product.category}</span>
+            <h3 class="product-name">${product.name}</h3>
+            <p class="product-description">${product.description}</p>
+            <div class="rating">
+              ${generateStars(product.rating)}
+              <span style="color: #aaa; font-size: 0.9rem;">(${product.rating})</span>
+            </div>
+            <div class="product-price">$${product.price.toLocaleString('es-AR')}</div>
+            <div class="product-stock">Stock: ${product.stock} unidades</div>
+            <button class="btn-primary" style="width: 100%;" onclick="event.stopPropagation(); addToCart(${product.id})" ${product.stock === 0 ? 'disabled' : ''}>
+              ${product.stock > 0 ? 'Agregar al carrito' : 'Sin stock'}
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function generateStars(rating) {
+      let stars = '';
+      for (let i = 1; i <= 5; i++) {
+        stars += `<span class="star ${i <= Math.floor(rating) ? '' : 'empty'}">★</span>`;
+      }
+      return stars;
+    }
+
+    // Product detail modal
+    function showProductDetail(productId) {
+      const product = products.find(p => p.id === productId);
+      if (!product) return;
+
+      // Increment views
+      product.views++;
+      saveData();
+      renderProducts();
+      updateAdminStats();
+
+      document.getElementById('modalProductName').textContent = product.name;
+      document.getElementById('productModalBody').innerHTML = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+          <div>
+            <img src="${product.image}" alt="${product.name}" style="width: 100%; border-radius: 15px;">
+          </div>
+          <div>
+            <span class="product-badge">${product.category}</span>
+            <div class="rating" style="margin: 1rem 0;">
+              ${generateStars(product.rating)}
+              <span style="color: #aaa;">(${product.rating})</span>
+            </div>
+            <p style="color: #aaa; line-height: 1.8; margin-bottom: 1.5rem;">${product.description}</p>
+            <div class="glass-card" style="margin-bottom: 1.5rem;">
+              <div class="flex-between" style="margin-bottom: 0.5rem;">
+                <span style="color: #aaa;">Precio:</span>
+                <span style="font-size: 2rem; font-weight: 700; color: #ff0055;">$${product.price.toLocaleString('es-AR')}</span>
+              </div>
+              <div class="flex-between">
+                <span style="color: #aaa;">Stock disponible:</span>
+                <span style="font-weight: 600;">${product.stock} unidades</span>
+              </div>
+            </div>
+            <button class="btn-primary" style="width: 100%;" onclick="addToCart(${product.id}); closeProductModal();" ${product.stock === 0 ? 'disabled' : ''}>
+              ${product.stock > 0 ? 'Agregar al carrito' : 'Sin stock'}
+            </button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1.5rem;">
+              <div class="glass-card text-center">
+                <div style="color: #aaa; font-size: 0.85rem;">Vistas</div>
+                <div style="font-weight: 700; font-size: 1.2rem;">${product.views}</div>
+              </div>
+              <div class="glass-card text-center">
+                <div style="color: #aaa; font-size: 0.85rem;">Vendidos</div>
+                <div style="font-weight: 700; font-size: 1.2rem;">${product.sales}</div>
+              </div>
+              <div class="glass-card text-center">
+                <div style="color: #aaa; font-size: 0.85rem;">Rating</div>
+                <div style="font-weight: 700; font-size: 1.2rem;">${product.rating}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.getElementById('productModal').classList.remove('hidden');
+    }
+
+    function closeProductModal() {
+      document.getElementById('productModal').classList.add('hidden');
+    }
+
+    // Cart functions
+    function addToCart(productId) {
+      const product = products.find(p => p.id === productId);
+      if (!product || product.stock === 0) {
+        showNotification('Producto sin stock', 'error');
+        return;
+      }
+
+      const existingItem = cart.find(item => item.id === productId);
+      if (existingItem) {
+        if (existingItem.quantity >= product.stock) {
+          showNotification('Stock insuficiente', 'error');
+          return;
+        }
+        existingItem.quantity++;
+      } else {
+        cart.push({ ...product, quantity: 1 });
+      }
+
+      saveData();
+      updateCartBadge();
+      showNotification('Producto agregado al carrito', 'success');
+    }
+
+    function updateCartBadge() {
+      const badge = document.getElementById('cartBadge');
+      const total = cart.reduce((sum, item) => sum + item.quantity, 0);
+      if (total > 0) {
+        badge.textContent = total;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function showCart() {
+      renderCart();
+      document.getElementById('cartModal').classList.remove('hidden');
+    }
+
+    function closeCart() {
+      document.getElementById('cartModal').classList.add('hidden');
+    }
+
+    function renderCart() {
+      const container = document.getElementById('cartItems');
+      if (cart.length === 0) {
+        container.innerHTML = `
+          <div class="glass-card text-center" style="padding: 3rem;">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">🛒</div>
+            <p style="font-size: 1.2rem; color: #aaa; margin-bottom: 1.5rem;">Tu carrito está vacío</p>
+            <button class="btn-primary" onclick="closeCart()">Ir a la tienda</button>
+          </div>
+        `;
+        document.getElementById('cartTotal').style.display = 'none';
+      } else {
+        container.innerHTML = cart.map(item => `
+          <div class="cart-item">
+            <img src="${item.image}" alt="${item.name}" class="cart-item-image">
+            <div class="cart-item-info">
+              <h3 style="font-weight: 600; margin-bottom: 0.5rem;">${item.name}</h3>
+              <p style="color: #ff0055; font-weight: 700;">$${item.price.toLocaleString('es-AR')}</p>
+            </div>
+            <div class="quantity-controls">
+              <button class="quantity-btn" onclick="updateQuantity(${item.id}, -1)">-</button>
+              <span style="font-weight: 700; font-size: 1.2rem;">${item.quantity}</span>
+              <button class="quantity-btn" onclick="updateQuantity(${item.id}, 1)">+</button>
+            </div>
+            <button class="remove-btn" onclick="removeFromCart(${item.id})">Eliminar</button>
+          </div>
+        `).join('');
+        document.getElementById('cartTotal').style.display = 'block';
+        updateCartTotal();
+      }
+    }
+
+    function updateQuantity(productId, delta) {
+      const product = products.find(p => p.id === productId);
+      const cartItem = cart.find(item => item.id === productId);
+      
+      if (cartItem) {
+        const newQuantity = cartItem.quantity + delta;
+        if (newQuantity <= 0) {
+          removeFromCart(productId);
+          return;
+        }
+        if (newQuantity > product.stock) {
+          showNotification('Stock insuficiente', 'error');
+          return;
+        }
+        cartItem.quantity = newQuantity;
+        saveData();
+        renderCart();
+        updateCartBadge();
+      }
+    }
+
+    function removeFromCart(productId) {
+      cart = cart.filter(item => item.id !== productId);
+      saveData();
+      renderCart();
+      updateCartBadge();
+      showNotification('Producto eliminado', 'info');
+    }
+
+    function updateCartTotal() {
+      const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      document.getElementById('totalAmount').textContent = `$${total.toLocaleString('es-AR')}`;
+    }
+
+    // Checkout
+    function proceedToCheckout() {
+      if (cart.length === 0) {
+        showNotification('El carrito está vacío', 'error');
+        return;
+      }
+      closeCart();
+      document.getElementById('checkoutModal').classList.remove('hidden');
+    }
+
+    function closeCheckout() {
+      document.getElementById('checkoutModal').classList.add('hidden');
+    }
+
+    function submitOrder(event) {
+      event.preventDefault();
+      
+      const name = document.getElementById('customerName').value;
+      const email = document.getElementById('customerEmail').value;
+      const phone = document.getElementById('customerPhone').value;
+      const address = document.getElementById('customerAddress').value;
+      const city = document.getElementById('customerCity').value;
+      const postal = document.getElementById('customerPostal').value;
+      const notes = document.getElementById('customerNotes').value;
+
+      const orderDetails = cart.map(item => `${item.quantity}x ${item.name}`).join(', ');
+      const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+      const message = `🛍️ *Nueva Orden KMZ*\n\n*Cliente:* ${name}\n*Email:* ${email}\n*Teléfono:* ${phone}\n*Dirección:* ${address}, ${city}${postal ? ' (' + postal + ')' : ''}\n\n*Productos:*\n${orderDetails}\n\n*Total:* $${total.toLocaleString('es-AR')}\n\n${notes ? '*Notas:* ' + notes : ''}`;
+      
+      const whatsappUrl = `https://wa.me/5491234567890?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
+
+      // Update stock and sales
+      cart.forEach(item => {
+        const product = products.find(p => p.id === item.id);
+        if (product) {
+          product.stock -= item.quantity;
+          product.sales += item.quantity;
+        }
+      });
+
+      saveData();
+      cart = [];
+      saveData();
+      updateCartBadge();
+      renderProducts();
+      
+      closeCheckout();
+      showNotification('¡Pedido enviado! Te contactaremos pronto', 'success');
+      document.getElementById('checkoutForm').reset();
+    }
+
+    // Admin functions
+    function showAdmin() {
+      document.getElementById('mainSite').classList.add('hidden');
+      document.getElementById('adminPanel').classList.remove('hidden');
+    }
+
+    function closeAdmin() {
+      document.getElementById('mainSite').classList.remove('hidden');
+      document.getElementById('adminPanel').classList.add('hidden');
+    }
+
+    function loginAdmin() {
+      const password = document.getElementById('adminPassword').value;
+      if (password === '00000000') {
+        isAdminLoggedIn = true;
+        document.getElementById('adminPanel').classList.add('hidden');
+        document.getElementById('adminDashboard').classList.remove('hidden');
+        updateAdminStats();
+        renderAdminProducts();
+        showNotification('Bienvenido al dashboard', 'success');
+      } else {
+        showNotification('Contraseña incorrecta', 'error');
+      }
+    }
+
+    function logoutAdmin() {
+      isAdminLoggedIn = false;
+      document.getElementById('adminPassword').value = '';
+      closeAdminDashboard();
+      showNotification('Sesión cerrada', 'info');
+    }
+
+    function closeAdminDashboard() {
+      document.getElementById('adminDashboard').classList.add('hidden');
+      document.getElementById('mainSite').classList.remove('hidden');
+    }
+
+    function switchAdminTab(tab) {
+      // Update buttons
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      // Update content
+      document.querySelectorAll('.admin-tab-content').forEach(content => content.classList.add('hidden'));
+      
+      if (tab === 'stats') {
+        document.getElementById('adminStatsTab').classList.remove('hidden');
+        updateAdminStats();
+      } else if (tab === 'products') {
+        document.getElementById('adminProductsTab').classList.remove('hidden');
+        renderAdminProducts();
+      } else if (tab === 'add') {
+        document.getElementById('adminAddTab').classList.remove('hidden');
+      }
+    }
+
+    function updateAdminStats() {
+      const totalViews = products.reduce((sum, p) => sum + p.views, 0);
+      const totalSales = products.reduce((sum, p) => sum + p.sales, 0);
+      const totalRevenue = products.reduce((sum, p) => sum + (p.sales * p.price), 0);
+
+      document.getElementById('totalProducts').textContent = products.length;
+      document.getElementById('totalViews').textContent = totalViews;
+      document.getElementById('totalSales').textContent = totalSales;
+      document.getElementById('totalRevenue').textContent = `$${totalRevenue.toLocaleString('es-AR')}`;
+
+      // Top products
+      const topProducts = [...products].sort((a, b) => b.views - a.views).slice(0, 5);
+      document.getElementById('topProducts').innerHTML = topProducts.map((product, i) => `
+        <div style="display: flex; align-items: center; gap: 1rem; background: rgba(0, 0, 0, 0.3); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+          <div style="font-size: 1.5rem; font-weight: 700; color: #333; width: 40px;">#${i + 1}</div>
+          <img src="${product.image}" alt="${product.name}" style="width: 60px; height: 60px; border-radius: 10px; object-fit: cover;">
+          <div style="flex: 1;">
+            <h4 style="font-weight: 600; margin-bottom: 0.25rem;">${product.name}</h4>
+            <p style="color: #aaa; font-size: 0.85rem;">${product.category}</p>
+          </div>
+          <div style="text-align: right;">
+            <div style="color: #a78bfa; font-weight: 600; margin-bottom: 0.25rem;">👁️ ${product.views}</div>
+            <div style="color: #22c55e; font-weight: 600;">📦 ${product.sales}</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 1.2rem; font-weight: 700; color: #ff0055;">$${product.price.toLocaleString('es-AR')}</div>
+            <div style="color: #aaa; font-size: 0.85rem;">Stock: ${product.stock}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderAdminProducts() {
+      const container = document.getElementById('adminProductsContainer');
+      container.innerHTML = products.map(product => `
+        <div class="glass-card">
+          <img src="${product.image}" alt="${product.name}" style="width: 100%; height: 200px; object-fit: cover; border-radius: 10px; margin-bottom: 1rem;">
+          <h3 style="font-weight: 600; margin-bottom: 0.5rem;">${product.name}</h3>
+          <p style="color: #aaa; font-size: 0.85rem; margin-bottom: 1rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${product.description}</p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+            <div>
+              <div style="color: #aaa;">Precio</div>
+              <div style="font-weight: 700; color: #ff0055;">$${product.price.toLocaleString('es-AR')}</div>
+            </div>
+            <div>
+              <div style="color: #aaa;">Stock</div>
+              <div style="font-weight: 700;">${product.stock}</div>
+            </div>
+            <div>
+              <div style="color: #aaa;">Vistas</div>
+              <div style="font-weight: 700; color: #a78bfa;">${product.views}</div>
+            </div>
+            <div>
+              <div style="color: #aaa;">Ventas</div>
+              <div style="font-weight: 700; color: #22c55e;">${product.sales}</div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <button class="btn-secondary" onclick="editProduct(${product.id})">✏️ Editar</button>
+            <button class="remove-btn" onclick="deleteProduct(${product.id})">🗑️ Eliminar</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function previewProductImage() {
+      const input = document.getElementById('productImage');
+      const preview = document.getElementById('imagePreview');
+      
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          preview.src = e.target.result;
+          preview.style.display = 'block';
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    function addProduct(event) {
+      event.preventDefault();
+      
+      const name = document.getElementById('productName').value;
+      const price = parseInt(document.getElementById('productPrice').value);
+      const stock = parseInt(document.getElementById('productStock').value);
+      const category = document.getElementById('productCategory').value;
+      const description = document.getElementById('productDescription').value;
+      const imageInput = document.getElementById('productImage');
+
+      let imageData = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23222" width="400" height="400"/%3E%3Ctext x="200" y="200" font-family="Arial" font-size="60" fill="%23fff" text-anchor="middle"%3EKMZ%3C/text%3E%3C/svg%3E';
+
+      if (imageInput.files && imageInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          imageData = e.target.result;
+          completeAddProduct(imageData);
+        };
+        reader.readAsDataURL(imageInput.files[0]);
+      } else {
+        completeAddProduct(imageData);
+      }
+
+      function completeAddProduct(image) {
+        const newProduct = {
+          id: Date.now(),
+          name,
+          price,
+          category,
+          stock,
+          description,
+          image,
+          views: 0,
+          sales: 0,
+          rating: 5.0
+        };
+
+        products.push(newProduct);
+        saveData();
+        renderProducts();
+        renderAdminProducts();
+        updateAdminStats();
+        
+        document.getElementById('addProductForm').reset();
+        document.getElementById('imagePreview').style.display = 'none';
+        
+        showNotification('Producto agregado exitosamente', 'success');
+        switchAdminTab('products');
+      }
+    }
+
+    function editProduct(productId) {
+      const product = products.find(p => p.id === productId);
+      if (!product) return;
+
+      const newName = prompt('Nombre:', product.name);
+      if (newName === null) return;
+      
+      const newPrice = prompt('Precio:', product.price);
+      if (newPrice === null) return;
+      
+      const newStock = prompt('Stock:', product.stock);
+      if (newStock === null) return;
+
+      product.name = newName || product.name;
+      product.price = parseInt(newPrice) || product.price;
+      product.stock = parseInt(newStock) || product.stock;
+
+      saveData();
+      renderProducts();
+      renderAdminProducts();
+      updateAdminStats();
+      showNotification('Producto actualizado', 'success');
+    }
+
+    function deleteProduct(productId) {
+      if (confirm('¿Confirma eliminar este producto?')) {
+        products = products.filter(p => p.id !== productId);
+        saveData();
+        renderProducts();
+        renderAdminProducts();
+        updateAdminStats();
+        showNotification('Producto eliminado', 'success');
+      }
+    }
+
+    // Initialize
+    window.onload = function() {
+      loadData();
+      renderProducts();
+      lucide.createIcons();
+    };
+
+    // Smooth scrolling
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>">
             <label>Nombre completo *</label>
             <input type="text" id="customerName" required>
           </div>
